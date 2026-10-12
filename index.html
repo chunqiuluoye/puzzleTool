@@ -516,15 +516,16 @@ window.addEventListener('beforeunload', function (e) {
 let allJigsawGroupsData = [], totalJigsawImageCount = 0, jigsawGroupCounterId = 0;
 const jigsawFileInput = document.getElementById('jigsawFileInput');
 
-// 命名规则：组文件夹 = image_{组序号}，组内图片 = {组序号}-{块序号}.jpeg（如 0-1、0-2、0-3、0-4）
+// 命名规则：组文件夹 = image_{组前缀}，组内图片 = {组前缀}-{块序号}.jpeg（如 0-1、hero-2）
 // 这是下载文件名/文件夹名的唯一来源，任何结构变动后由 refreshAllJigsawGroupsUI / 下载函数调用重算
 function recomputeJigsawFileNames() {
     allJigsawGroupsData.forEach((group, groupIndex) => {
         group.groupIndex = groupIndex;
-        group.folderName = `image_${groupIndex}`;
+        group.prefix = String(group.prefix ?? '').trim() || getJigsawPrefix(groupIndex);
+        group.folderName = `image_${group.prefix}`;
         group.tasks.forEach(task => {
             if (task) {
-                task.fileName = `${groupIndex}-${task.id}.jpeg`;
+                task.fileName = `${group.prefix}-${task.id}.jpeg`;
             }
         });
     });
@@ -1321,13 +1322,12 @@ function updateSingleJigsawGrid(id, direction, value) {
 function downloadSingleJigsawZip(id) {
     const group = allJigsawGroupsData.find(g => g.id === id); if (!group) return;
     recomputeJigsawFileNames();
-    const groupIndex = allJigsawGroupsData.indexOf(group);
-    const folderName = `image_${groupIndex}`;
+    const folderName = group.folderName;
     const zip = new JSZip(); 
     const folder = zip.folder(folderName);
     group.tasks.forEach((task, taskIdx) => { 
         if(task) {
-            const pieceName = `${groupIndex}-${taskIdx + 1}.jpeg`;
+            const pieceName = `${group.prefix}-${taskIdx + 1}.jpeg`;
             folder.file(pieceName, task.blob); 
         }
     });
@@ -1338,12 +1338,12 @@ function downloadAllJigsawGroupsZip() {
     if (allJigsawGroupsData.length === 0) return;
     recomputeJigsawFileNames();
     const zip = new JSZip();
-    allJigsawGroupsData.forEach((group, groupIdx) => {
-        const folderName = `image_${groupIdx}`;
+    allJigsawGroupsData.forEach((group) => {
+        const folderName = group.folderName;
         const folder = zip.folder(folderName);
         group.tasks.forEach((task, taskIdx) => { 
             if(task) {
-                const pieceName = `${groupIdx}-${taskIdx + 1}.jpeg`;
+                const pieceName = `${group.prefix}-${taskIdx + 1}.jpeg`;
                 folder.file(pieceName, task.blob); 
             }
         });
