@@ -1815,12 +1815,13 @@ function deleteJigsawGroup(id) {
     allJigsawGroupsData.forEach((group, index) => {
         if (!group.isCustom) { group.prefix = getJigsawPrefix(index); }
     });
+    clearTimeout(_autoRefreshTimer);
     refreshAllJigsawGroupsUI();
     const jigsawActionBar = document.getElementById('jigsawActionBar');
     if (jigsawActionBar && allJigsawGroupsData.length === 0) jigsawActionBar.style.display = 'none';
-    if (allJigsawGroupsData.length > 0) {
-        clearTimeout(_autoRefreshTimer);
-        refreshAllJigsawWithCurrentSettings();
+    const statusDiv = document.getElementById('jigsawStatus');
+    if (statusDiv && allJigsawGroupsData.length > 0) {
+        statusDiv.textContent = '✅ 已删除原图，剩余切图未重新生成';
     }
 }
 
