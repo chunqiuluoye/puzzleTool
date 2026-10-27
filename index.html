@@ -168,6 +168,20 @@
             background: rgba(0, 113, 227, 0.05);
         }
         #jigsawFileInput { display: none; }
+        .jigsaw-folder-entry { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+        .jigsaw-folder-entry small, .jigsaw-reverse-hint { color: var(--text-muted); font-size: 12px; }
+        .jigsaw-reverse-panel { margin-bottom: 20px; padding: 16px; border: 1px solid var(--tag-border); border-radius: 10px; background: #f4f9ff; }
+        .jigsaw-reverse-header { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
+        .jigsaw-reverse-header h2 { font-size: 15px; margin-right: auto; }
+        .jigsaw-reverse-status { margin: 10px 0; font-size: 13px; color: var(--accent-color); }
+        .jigsaw-reverse-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; max-height: 440px; overflow-y: auto; }
+        .jigsaw-reverse-card { min-width: 0; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; background: white; }
+        .jigsaw-reverse-name { display: flex; align-items: flex-start; gap: 7px; font-size: 13px; font-weight: bold; overflow-wrap: anywhere; }
+        .jigsaw-reverse-name input { margin-top: 3px; flex-shrink: 0; }
+        .jigsaw-reverse-card select { width: 100%; padding: 6px; margin: 8px 0; border: 1px solid var(--tag-border); border-radius: 5px; }
+        .jigsaw-reverse-canvas { display: block; max-width: 100%; height: auto; margin: 4px auto 10px; background: #edf2f7; }
+        .jigsaw-reverse-note { font-size: 12px; color: var(--text-muted); overflow-wrap: anywhere; }
+        .jigsaw-reverse-note.is-error { color: #bd2424; }
         #jigsawStatus { text-align: center; color: var(--orange-color); font-size: 15px; margin: 10px 0; font-weight: bold; }
         .jigsaw-action-bar { text-align: center; margin: 20px 0; display: none; }
         .jigsaw-action-bar .form-btn { margin: 0 10px; padding: 10px 24px; font-size: 15px; }
@@ -546,19 +560,37 @@
                     实时同步切图
                 </label>
                 <button type="button" class="form-btn blue-btn jigsaw-preview-refresh-btn" id="jigsawApplyPreviewCutBtn" onclick="confirmJigsawPreviewCut()">刷新所有切图</button>
+                <button type="button" class="form-btn blue-btn" id="jigsawRestoredDownloadBtn" onclick="downloadAllRestoredJigsawImages('imported')" title="下载原图预览中的全部还原图，保留原始 PNG，不受重新切割影响" hidden>下载所有还原图</button>
                 <button type="button" class="form-btn red-btn jigsaw-preview-clear-btn" onclick="clearAllJigsawHistory()">清除所有</button>
             </div>
         </div>
-        <div class="jigsaw-all-preview-hint">拖到图片上交换位置，拖到两张图片之间插入；点击右上角 × 移除。未勾选“实时同步切图”时，新拖入的图片也只加入原图预览，下方切图结果保持不变，点击“刷新所有切图”后才会更新。</div>
+        <div class="jigsaw-all-preview-hint">拖到图片上交换位置，拖到两张图片之间插入；点击图片下方“删除”移除。未勾选“实时同步切图”时，新拖入的图片也只加入原图预览，下方切图结果保持不变，点击“刷新所有切图”后才会更新。</div>
         <div class="jigsaw-all-preview-container" id="jigsawAllPreviewContainer"></div>
     </div>
     <div class="jigsaw-upload-area" id="jigsawDropZone" onclick="document.getElementById('jigsawFileInput').click()">
-        <span style="font-size: 15px; font-weight: bold; color: var(--accent-color);">点击或将多张图片拖拽到此处进行批量自动切割</span>
+        <span style="font-size: 15px; font-weight: bold; color: var(--accent-color);">点击或将多张原图拖拽到此处</span>
         <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.5;">
-            💡 使用提示：1. 先在顶部设置<b>单图默认比例</b>与相关分辨率； 2. 选择合适的<b>默认切割网格</b>； 3. 上传图片进行批量自动切割。
+            上传后可先调整原图顺序，再点击<b>刷新所有切图</b>。已有切片可通过下方“读取切图文件夹”拼回整图。
         </div>
         <input type="file" id="jigsawFileInput" accept="image/*" multiple onchange="handleJigsawFiles(this.files)">
     </div>
+    <div class="jigsaw-folder-entry">
+        <button type="button" class="form-btn blue-btn" id="jigsawReadFolderBtn" onclick="document.getElementById('jigsawFolderInput').click()">读取切图文件夹</button>
+        <small>选择解压后的切片文件夹，支持一次读取多个 image_ 子文件夹。</small>
+        <input type="file" id="jigsawFolderInput" webkitdirectory multiple hidden onchange="handleJigsawFolderFiles(this.files)">
+    </div>
+    <section class="jigsaw-reverse-panel" id="jigsawReversePanel" aria-labelledby="jigsawReverseTitle" hidden>
+        <div class="jigsaw-reverse-header">
+            <h2 id="jigsawReverseTitle">反向读取 · 切片还原</h2>
+            <button type="button" class="form-btn blue-btn" id="jigsawReverseDownloadBtn" onclick="downloadAllRestoredJigsawImages()" title="下载本次读取中所有成功还原的整图，不受导入勾选影响；PNG 无损格式，ZIP 打包" disabled>下载所有还原图</button>
+            <button type="button" class="form-btn blue-btn" id="jigsawReverseImportBtn" onclick="importRestoredJigsawGroups()" disabled>还原并加入原图预览</button>
+            <button type="button" class="form-btn red-btn" id="jigsawReverseCancelBtn" onclick="clearJigsawReverseImport()">取消</button>
+        </div>
+        <p class="jigsaw-reverse-hint">按“前缀-序号”（如 0-1.jpeg）或纯数字文件名分组，序号从 1 开始，按从左到右、从上到下拼接。请核对每组的原始列数、行数：建议网格可修改，尤其是两张切片的横拼 / 竖拼。</p>
+        <p class="jigsaw-reverse-hint">可直接下载所有成功还原的 PNG 无损整图（ZIP 打包），也可加入原图预览，调整排序和切割设置，再点“刷新所有切图”。只能还原现有切片覆盖的画面。</p>
+        <div class="jigsaw-reverse-status" id="jigsawReverseStatus" role="status" aria-live="polite"></div>
+        <div class="jigsaw-reverse-groups" id="jigsawReverseGroups"></div>
+    </section>
     <div id="jigsawStatus" role="status" aria-live="polite"></div>
     <div class="jigsaw-action-bar" id="jigsawActionBar">
         <button class="form-btn orange-btn" onclick="downloadAllJigsawGroupsZip()">📦 下载所有切割图</button>
@@ -1114,6 +1146,318 @@ function processSingleJigsawFile(file, prefix, mode, customGrid = null, deferCut
     });
 }
 
+// ============================================================
+// 反向读取：按文件夹 / 前缀分组，确认原网格，再把还原图交给现有切图流程。
+// ============================================================
+let jigsawReverseGroups = [];
+let jigsawReverseBusy = false;
+let jigsawReverseDownloading = false;
+
+function getJigsawReverseGridOptions(count) {
+    const grids = [];
+    for (let cols = 1; cols <= 20; cols++) {
+        const rows = count / cols;
+        if (Number.isInteger(rows) && rows >= 1 && rows <= 20) grids.push({ cols, rows });
+    }
+    return grids;
+}
+
+function suggestJigsawReverseGrid(count, prefix) {
+    // 旧版模板的 0 / 1 组是竖拼，2 组是横拼。其余只给建议，必须展示还原预览供核对。
+    if (count === 2) return /^(0|1)$/.test(prefix) ? { cols: 1, rows: 2 } : { cols: 2, rows: 1 };
+    const presets = { 1: [1, 1], 3: [3, 1], 4: [2, 2], 16: [4, 4], 20: [4, 5], 36: [6, 6], 64: [8, 8] };
+    if (presets[count]) return { cols: presets[count][0], rows: presets[count][1] };
+    return getJigsawReverseGridOptions(count).sort((a, b) => Math.abs(a.cols - a.rows) - Math.abs(b.cols - b.rows))[0] || null;
+}
+
+function collectJigsawReverseGroups(files) {
+    const groups = new Map();
+    let ignored = 0;
+    for (const file of files) {
+        const path = file.webkitRelativePath || file.name;
+        if (!/\.(jpe?g|png|webp|bmp|gif|avif)$/i.test(file.name) || path.split('/').some(part => part.startsWith('.') || part === '__MACOSX')) {
+            ignored++;
+            continue;
+        }
+        const folder = path.slice(0, Math.max(0, path.lastIndexOf('/')));
+        const stem = file.name.replace(/\.[^.]+$/, '');
+        const named = stem.match(/^(.+)[-_](\d+)$/);
+        const numbered = stem.match(/^\d+$/);
+        if (!named && !numbered) { ignored++; continue; }
+        const prefix = named ? named[1] : '';
+        const sequence = Number(named ? named[2] : stem);
+        const key = JSON.stringify([folder, prefix]);
+        if (!groups.has(key)) groups.set(key, { folder, prefix, label: `${folder || '所选文件夹'}${prefix ? ' / ' + prefix : ''}`, pieces: [] });
+        groups.get(key).pieces.push({ file, sequence });
+    }
+    const collator = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' });
+    const sorted = [...groups.values()].sort((a, b) => collator.compare(a.folder, b.folder) || collator.compare(a.prefix, b.prefix));
+    for (const group of sorted) {
+        group.pieces.sort((a, b) => a.sequence - b.sequence);
+        const indices = group.pieces.map(piece => piece.sequence);
+        if (new Set(indices).size !== indices.length) group.error = '存在重复序号，请保留每个序号的一张切片后重新读取。';
+        else if (indices.some((n, i) => !Number.isSafeInteger(n) || n !== i + 1)) group.error = '切片序号须从 1 开始连续排列，请检查缺失或错误序号。';
+        else if (!getJigsawReverseGridOptions(indices.length).length) group.error = '切片数量无法组成最多 20 列 × 20 行的网格。';
+        group.grid = suggestJigsawReverseGrid(indices.length, group.prefix);
+        group.selected = !group.error;
+    }
+    return { groups: sorted, ignored };
+}
+
+function loadJigsawReverseImage(blob, name) {
+    return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        const fail = () => {
+            clearTimeout(timer);
+            img.onload = img.onerror = null;
+            img.src = '';
+            URL.revokeObjectURL(url);
+            reject(new Error(`无法读取图片：${name}`));
+        };
+        const timer = setTimeout(fail, 30000);
+        img.onload = () => {
+            clearTimeout(timer);
+            img.onload = img.onerror = null;
+            resolve({ img, url });
+        };
+        img.onerror = fail;
+        img.src = url;
+    });
+}
+
+async function restoreJigsawPieceGroup(group, previewCanvas) {
+    const { cols, rows } = group.grid || {};
+    if (!Number.isInteger(cols) || !Number.isInteger(rows) || cols < 1 || rows < 1 || cols > 20 || rows > 20 || cols * rows !== group.pieces.length) {
+        throw new Error('原网格的列数 × 行数必须等于切片数量。');
+    }
+    const loaded = [];
+    const canvas = document.createElement('canvas');
+    try {
+        let cellWidth = 0, cellHeight = 0;
+        for (const piece of group.pieces) {
+            const image = await loadJigsawReverseImage(piece.file, piece.file.name);
+            loaded.push(image);
+            cellWidth = Math.max(cellWidth, image.img.naturalWidth);
+            cellHeight = Math.max(cellHeight, image.img.naturalHeight);
+            if (cellWidth * cols > 16384 || cellHeight * rows > 16384 || cellWidth * cols * cellHeight * rows > 32000000) {
+                throw new Error('还原图过大（超过 3200 万像素或单边 16384 像素），请先缩小切片尺寸。');
+            }
+        }
+        canvas.width = cellWidth * cols;
+        canvas.height = cellHeight * rows;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('浏览器无法创建拼接画布，请减少图片尺寸后重试。');
+        ctx.imageSmoothingQuality = 'high';
+        loaded.forEach(({ img }, index) => {
+            ctx.drawImage(img, (index % cols) * cellWidth, Math.floor(index / cols) * cellHeight, cellWidth, cellHeight);
+        });
+        const blob = await new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('还原图生成失败，请减少图片尺寸后重试。')), 'image/png'));
+        if (previewCanvas) {
+            const scale = Math.min(1, 200 / canvas.width, 160 / canvas.height);
+            previewCanvas.width = Math.max(1, Math.round(canvas.width * scale));
+            previewCanvas.height = Math.max(1, Math.round(canvas.height * scale));
+            previewCanvas.getContext('2d').drawImage(canvas, 0, 0, previewCanvas.width, previewCanvas.height);
+        }
+        return { blob, width: canvas.width, height: canvas.height, resized: loaded.some(({ img }) => img.naturalWidth !== cellWidth || img.naturalHeight !== cellHeight) };
+    } finally {
+        loaded.forEach(({ img, url }) => { img.src = ''; URL.revokeObjectURL(url); });
+        canvas.width = canvas.height = 1;
+    }
+}
+
+function updateJigsawReverseControls() {
+    const busy = jigsawReverseBusy || jigsawReverseDownloading;
+    const selected = jigsawReverseGroups.filter(group => group.selected);
+    const button = document.getElementById('jigsawReverseImportBtn');
+    button.disabled = busy || !selected.length || selected.some(group => !group.restored);
+    button.textContent = jigsawReverseBusy ? '正在处理...' : `还原并加入原图预览${selected.length ? `（${selected.length} 组）` : ''}`;
+    document.getElementById('jigsawReadFolderBtn').disabled = busy;
+    document.getElementById('jigsawReverseCancelBtn').disabled = busy;
+    updateJigsawRestoredDownloadControls();
+    jigsawReverseGroups.forEach(group => {
+        group.checkbox.disabled = busy || !!group.error;
+        group.checkbox.checked = group.selected;
+        group.select.disabled = busy || !!group.error;
+    });
+}
+
+function updateJigsawRestoredDownloadControls() {
+    const pendingButton = document.getElementById('jigsawReverseDownloadBtn');
+    pendingButton.disabled = jigsawReverseBusy || jigsawReverseDownloading || !jigsawReverseGroups.some(group => group.restored?.blob);
+    const importedButton = document.getElementById('jigsawRestoredDownloadBtn');
+    const hasImported = allJigsawGroupsData.some(group => group.restoredBlob);
+    importedButton.hidden = !hasImported;
+    importedButton.disabled = jigsawReverseBusy || jigsawReverseDownloading || !hasImported;
+    for (const button of [pendingButton, importedButton]) {
+        button.textContent = jigsawReverseDownloading ? '正在打包还原图...' : '下载所有还原图';
+    }
+}
+
+function getJigsawRestoredFileName(label, index) {
+    // 加入序号以区分同名子文件夹，并移除文件名中的路径 / Windows 特殊字符。
+    const name = String(label || '还原图').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/g, '').slice(0, 120);
+    return `${String(index + 1).padStart(3, '0')}_${name || '还原图'}.png`;
+}
+
+async function downloadAllRestoredJigsawImages(source = 'pending') {
+    if (jigsawReverseDownloading || jigsawReverseBusy) return;
+    // 直接打包还原时的 PNG Blob；不使用缩略图，也不经过切割 / JPEG 压缩流程。
+    const images = source === 'imported'
+        ? allJigsawGroupsData.filter(group => group.restoredBlob).map(group => ({ blob: group.restoredBlob, label: group.restoredFrom }))
+        : jigsawReverseGroups.filter(group => group.restored?.blob).map(group => ({ blob: group.restored.blob, label: group.label }));
+    const status = document.getElementById(source === 'imported' ? 'jigsawStatus' : 'jigsawReverseStatus');
+    if (!images.length) { status.textContent = '暂无可下载的还原图，请先读取切图文件夹。'; return; }
+    if (typeof JSZip === 'undefined' || typeof saveAs !== 'function') {
+        status.textContent = '下载组件未加载，请联网刷新页面后重试。';
+        return;
+    }
+    jigsawReverseDownloading = true;
+    updateJigsawReverseControls();
+    try {
+        const zip = new JSZip();
+        images.forEach((image, index) => zip.file(getJigsawRestoredFileName(image.label, index), image.blob));
+        const archive = await zip.generateAsync({ type: 'blob', compression: 'STORE' }, metadata => {
+            status.textContent = `正在打包 ${images.length} 张还原图… ${Math.round(metadata.percent)}%`;
+        });
+        saveAs(archive, '全部还原图.zip');
+        status.textContent = `已打包 ${images.length} 张 PNG 无损还原图，开始下载。`;
+    } catch (error) {
+        status.textContent = `还原图下载失败：${error.message}，请重试。`;
+    } finally {
+        jigsawReverseDownloading = false;
+        updateJigsawReverseControls();
+    }
+}
+
+async function buildJigsawReversePreview(group) {
+    group.restored = null;
+    group.note.classList.remove('is-error');
+    group.note.textContent = '正在拼接还原预览...';
+    try {
+        group.restored = await restoreJigsawPieceGroup(group, group.canvas);
+        const { width, height, resized } = group.restored;
+        group.note.textContent = `${width} × ${height} 像素${resized ? ' · 切片尺寸不一，已统一大小' : ''}`;
+    } catch (error) {
+        group.selected = false;
+        group.canvas.width = group.canvas.height = 1;
+        group.note.textContent = error.message;
+        group.note.classList.add('is-error');
+    }
+}
+
+function renderJigsawReverseGroups() {
+    const container = document.getElementById('jigsawReverseGroups');
+    container.replaceChildren();
+    for (const group of jigsawReverseGroups) {
+        const card = document.createElement('div');
+        card.className = 'jigsaw-reverse-card';
+        card.innerHTML = '<label class="jigsaw-reverse-name"><input type="checkbox"><span></span></label><select aria-label="原始拼接网格"></select><canvas class="jigsaw-reverse-canvas" width="1" height="1" aria-label="还原预览"></canvas><p class="jigsaw-reverse-note"></p>';
+        card.querySelector('span').textContent = `${group.label}（${group.pieces.length} 片）`;
+        group.checkbox = card.querySelector('input');
+        group.checkbox.addEventListener('change', () => { group.selected = group.checkbox.checked; updateJigsawReverseControls(); });
+        group.select = card.querySelector('select');
+        for (const grid of getJigsawReverseGridOptions(group.pieces.length)) {
+            const value = `${grid.cols}x${grid.rows}`;
+            const suggested = group.grid?.cols === grid.cols && group.grid?.rows === grid.rows;
+            group.select.add(new Option(`${grid.cols} 列 × ${grid.rows} 行${suggested ? '（建议，需核对）' : ''}`, value, suggested, suggested));
+        }
+        group.canvas = card.querySelector('canvas');
+        group.note = card.querySelector('p');
+        group.note.textContent = group.error || '等待还原预览...';
+        group.note.classList.toggle('is-error', !!group.error);
+        group.select.addEventListener('change', async () => {
+            if (jigsawReverseBusy || jigsawReverseDownloading) return;
+            const [cols, rows] = group.select.value.split('x').map(Number);
+            group.grid = { cols, rows };
+            jigsawReverseBusy = true;
+            updateJigsawReverseControls();
+            try { await buildJigsawReversePreview(group); }
+            finally { jigsawReverseBusy = false; updateJigsawReverseControls(); }
+        });
+        container.appendChild(card);
+    }
+    updateJigsawReverseControls();
+}
+
+async function handleJigsawFolderFiles(files) {
+    if (jigsawReverseBusy || jigsawReverseDownloading || !canEditJigsawPreviews()) return;
+    const selectedFiles = Array.from(files);
+    document.getElementById('jigsawFolderInput').value = '';
+    if (!selectedFiles.length) return;
+    clearJigsawReverseImport();
+    document.getElementById('jigsawReversePanel').hidden = false;
+    const status = document.getElementById('jigsawReverseStatus');
+    jigsawReverseBusy = true;
+    try {
+        const result = collectJigsawReverseGroups(selectedFiles);
+        jigsawReverseGroups = result.groups;
+        renderJigsawReverseGroups();
+        for (let i = 0; i < jigsawReverseGroups.length; i++) {
+            const group = jigsawReverseGroups[i];
+            status.textContent = `正在还原预览 ${i + 1} / ${jigsawReverseGroups.length} 组...`;
+            if (!group.error) await buildJigsawReversePreview(group);
+        }
+        const ready = jigsawReverseGroups.filter(group => group.restored).length;
+        status.textContent = jigsawReverseGroups.length
+            ? `识别 ${jigsawReverseGroups.length} 组，可还原 ${ready} 组${result.ignored ? `；忽略 ${result.ignored} 个非切片文件` : ''}。请核对网格和画面，再加入原图预览。`
+            : '未找到切片。请选择含 0-1.jpeg、0-2.jpeg 等文件的文件夹（也支持 1.jpg、2.jpg）。';
+    } catch (error) {
+        status.textContent = `读取失败：${error.message}`;
+    } finally {
+        jigsawReverseBusy = false;
+        updateJigsawReverseControls();
+    }
+}
+
+function clearJigsawReverseImport() {
+    if (jigsawReverseBusy || jigsawReverseDownloading) return;
+    jigsawReverseGroups = [];
+    document.getElementById('jigsawReverseGroups').replaceChildren();
+    document.getElementById('jigsawReversePanel').hidden = true;
+    document.getElementById('jigsawReverseStatus').textContent = '';
+    document.getElementById('jigsawFolderInput').value = '';
+    updateJigsawReverseControls();
+}
+
+async function importRestoredJigsawGroups() {
+    if (jigsawReverseBusy || jigsawReverseDownloading || !canEditJigsawPreviews()) return;
+    const selected = jigsawReverseGroups.filter(group => group.selected);
+    if (!selected.length || selected.some(group => !group.restored)) return;
+    jigsawReverseBusy = true;
+    _jigsawIsProcessing = true;
+    clearTimeout(_autoRefreshTimer);
+    updateJigsawReverseControls();
+    const prepared = [];
+    let committed = false;
+    try {
+        for (const source of selected) {
+            const { img, url } = await loadJigsawReverseImage(source.restored.blob, source.label);
+            const index = allJigsawGroupsData.length + prepared.length;
+            const mode = document.getElementById('jigsawTemplateToggle').checked
+                ? getJigsawTemplateMode(index)
+                : (document.querySelector('input[name="jigsawGlobalCutMode"]:checked')?.value || '2x2');
+            const grid = getJigsawCustomGrid();
+            prepared.push({ id: ++jigsawGroupCounterId, prefix: getJigsawPrefix(index), isCustom: false, modeIsCustom: false,
+                mode, cutCols: grid.cols, cutRows: grid.rows, img, sourceUrl: url, restoredFrom: source.label,
+                restoredBlob: source.restored.blob, tasks: [], gridClass: '' });
+        }
+        allJigsawGroupsData.push(...prepared);
+        totalJigsawImageCount = allJigsawGroupsData.length;
+        committed = true;
+        refreshAllPreviewBar();
+        document.getElementById('jigsawStatus').textContent = `已还原 ${prepared.length} 张整图并加入原图预览，请调整顺序后点击“刷新所有切图”。`;
+    } catch (error) {
+        document.getElementById('jigsawReverseStatus').textContent = `导入失败：${error.message}，请重试。`;
+    } finally {
+        if (!committed) prepared.forEach(group => URL.revokeObjectURL(group.sourceUrl));
+        jigsawReverseBusy = false;
+        _jigsawIsProcessing = false;
+        if (committed) clearJigsawReverseImport();
+        else updateJigsawReverseControls();
+    }
+}
+
 function generateJigsawCuts(groupObj, onComplete) {
     groupObj._isCutting = true;
     groupObj.tasks.forEach(task => { if(task && task.url) URL.revokeObjectURL(task.url); });
@@ -1201,7 +1545,7 @@ function canSwapJigsawPreviews() {
 }
 
 function canEditJigsawPreviews() {
-    return !_jigsawIsProcessing &&
+    return !_jigsawIsProcessing && !_jigsawPreviewFullRefreshInProgress &&
         !allJigsawGroupsData.some(group => group._isCutting);
 }
 
@@ -1290,7 +1634,7 @@ async function refreshJigsawGroupsAfterReorder(affectedGroups) {
                 }
             }
         }
-        if (before !== getJigsawCutSettingsSignature(group)) {
+        if (!group.tasks.length || before !== getJigsawCutSettingsSignature(group)) {
             recutCount++;
             await new Promise(resolve => generateJigsawCuts(group, resolve));
         }
@@ -1386,6 +1730,7 @@ function refreshAllPreviewBar() {
     const container = document.getElementById('jigsawAllPreviewContainer');
     const title = bar?.querySelector('.jigsaw-all-preview-title');
     if (!bar || !container) return;
+    updateJigsawRestoredDownloadControls();
     resetJigsawPreviewDrag();
     container.innerHTML = '';
     if (allJigsawGroupsData.length === 0) { bar.style.display = 'none'; return; }
@@ -1811,6 +2156,7 @@ function deleteJigsawGroup(id) {
     if (!canEditJigsawPreviews()) return;
     const idx = allJigsawGroupsData.findIndex(g => g.id === id); if (idx === -1) return;
     allJigsawGroupsData[idx].tasks.forEach(task => { if(task && task.url) URL.revokeObjectURL(task.url); });
+    if (allJigsawGroupsData[idx].sourceUrl) URL.revokeObjectURL(allJigsawGroupsData[idx].sourceUrl);
     allJigsawGroupsData.splice(idx, 1); totalJigsawImageCount = allJigsawGroupsData.length;
     allJigsawGroupsData.forEach((group, index) => {
         if (!group.isCustom) { group.prefix = getJigsawPrefix(index); }
@@ -1826,7 +2172,10 @@ function deleteJigsawGroup(id) {
 }
 
 function clearAllJigsawHistory() {
+    if (!canEditJigsawPreviews()) return;
     if(confirm('确定清空所有切图历史吗？')) {
+        clearTimeout(_autoRefreshTimer);
+        allJigsawGroupsData.forEach(group => { if (group.sourceUrl) URL.revokeObjectURL(group.sourceUrl); });
         allJigsawGroupsData.forEach(g => g.tasks.forEach(t => { if(t && t.url) URL.revokeObjectURL(t.url); }));
         allJigsawGroupsData = []; totalJigsawImageCount = 0; jigsawGroupCounterId = 0;
         const container = document.getElementById('jigsawOutputGroupsContainer');
