@@ -370,6 +370,7 @@
         .single-crop-panel { text-align: center; }
         .single-crop-toolbar, .single-crop-hint, .single-crop-actions, .single-crop-page-header { text-align: left; }
         .single-crop-stage img { display: block; max-width: 100%; max-height: 62vh; object-fit: contain; }
+        #singleCropPage[data-scope="all"] .single-crop-stage img { max-height: 43vh; }
         .single-crop-selection { position: absolute; border: 2px solid #00a8ff; background-color: rgba(0, 168, 255, .16); cursor: move; box-shadow: 0 0 0 9999px rgba(0,0,0,.28); }
         .single-crop-selection::before, .single-crop-selection::after { display: none; }
         .single-crop-grid-line { position: absolute; pointer-events: none; border-color: rgba(255, 255, 255, .72); border-style: dashed; border-width: 0; }
@@ -382,6 +383,10 @@
         .single-crop-handle.br { right: -7px; bottom: -7px; cursor: nwse-resize; }
         .single-crop-hint { margin-top: 10px; color: var(--text-muted); font-size: 12px; }
         .single-crop-actions { display: flex; gap: 10px; margin-top: 14px; }
+        .unified-crop-controls { text-align: left; margin-bottom: 14px; padding: 10px 12px; background: #eef7ff; border: 1px solid var(--tag-border); border-radius: 7px; }
+        .unified-crop-controls label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; font-weight: bold; }
+        .unified-crop-controls select { max-width: 100%; padding: 5px 8px; border: 1px solid var(--tag-border); border-radius: 5px; }
+        .unified-crop-controls p { margin-top: 7px; color: #526578; font-size: 12px; }
 
         /* ===== 通用弹窗 ===== */
         .fish-modal-overlay { 
@@ -531,11 +536,16 @@
         </div>
         <div class="jigsaw-settings-row" style="border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 4px;"></div>
     </div>
-    <div id="singleCropPage" class="crop-modal" style="display:none;">
+    <div id="singleCropPage" class="crop-modal" role="dialog" aria-modal="true" aria-labelledby="singleCropTitle" style="display:none;">
         <div class="single-crop-panel">
-            <div class="single-crop-page-header"><div class="jigsaw-page-title">🎯 组选区</div><button class="form-btn blue-btn" onclick="showJigsawPage()">取消</button></div>
+            <div class="single-crop-page-header"><div class="jigsaw-page-title" id="singleCropTitle">🎯 组选区</div><button class="form-btn blue-btn" onclick="showJigsawPage()">取消</button></div>
+            <div class="unified-crop-controls" id="unifiedCropControls" hidden>
+                <label>模板原图 <select id="unifiedCropReference" onchange="changeUnifiedCropReference(this.value)"></select></label>
+                <p>以一张原图为模板，将选区、切割网格和分辨率复制到当前全部原图。选区按原图像素复制；切换模板会载入该图已有的设置。</p>
+                <p id="unifiedCropApplyHint"></p>
+            </div>
             <div class="single-crop-toolbar">
-                <span class="single-crop-grid-control">📐 切割网格 <select id="singleCropGroupGrid" onchange="updateSingleCropGroupGridUI()"><option value="2x2">2×2</option><option value="2x1">2×1</option><option value="1x2">1×2</option><option value="3x1">3×1</option><option value="4x4">4×4</option><option value="4x5">4×5</option><option value="6x6">6×6</option><option value="8x8">8×8</option><option value="custom">自定义</option></select></span>
+                <span class="single-crop-grid-control">📐 切割网格 <select id="singleCropGroupGrid" onchange="updateSingleCropGroupGridUI()"><option value="2x2">2×2</option><option value="1x1">1×1</option><option value="2x1">2×1</option><option value="1x2">1×2</option><option value="3x1">3×1</option><option value="4x4">4×4</option><option value="4x5">4×5</option><option value="6x6">6×6</option><option value="8x8">8×8</option><option value="custom">自定义</option></select></span>
                 <span id="singleCropGroupGridCustom" class="jigsaw-cut-inputs" style="display:none"><input type="number" id="singleCropGroupCols" min="1" max="20" value="2" oninput="autoAdjustCropRatio()" title="列：横向切割数"><span class="jigsaw-cut-label">列</span><span>|</span><input type="number" id="singleCropGroupRows" min="1" max="20" value="2" oninput="autoAdjustCropRatio()" title="行：竖向切割数"><span class="jigsaw-cut-label">行</span></span>
                 <label>X <input type="number" id="singleCropX" min="0"></label>
                 <label>Y <input type="number" id="singleCropY" min="0"></label>
@@ -547,7 +557,7 @@
                 <input type="hidden" id="singleCropRatio" value="0.75">
             </div>
             <div class="single-crop-stage" id="singleCropStage"><img id="singleCropImage" alt="待选区原图"><div class="single-crop-selection" id="singleCropSelection"><span class="single-crop-handle tl"></span><span class="single-crop-handle tr"></span><span class="single-crop-handle bl"></span><span class="single-crop-handle br"></span></div></div>
-            <div class="single-crop-hint">💡 拖动选区移动位置，拖动四角调整大小。白色虚线为当前切割网格预览。坐标和尺寸均为原图像素。取消固定比例后，输出单图分辨率 = 选区单张切图比例 × 全局单图比例分辨率。</div>
+            <div class="single-crop-hint">💡 拖动选区移动位置，拖动四角调整大小。白色虚线为当前切割网格预览。坐标和尺寸均为原图像素。取消固定比例后，输出单图分辨率 = 选区单张切图比例 × 上方单图比例分辨率。</div>
             <div class="single-crop-actions"><button class="form-btn green-btn" id="singleCropConfirmBtn">✅ 确定选区并重新切割</button></div>
         </div>
     </div>
@@ -559,6 +569,7 @@
                     <input type="checkbox" id="jigsawPreviewRealtimeSync">
                     实时同步切图
                 </label>
+                <button type="button" class="form-btn blue-btn" id="jigsawUnifiedCropBtn" onclick="openUnifiedCropEditor()">统一选区</button>
                 <button type="button" class="form-btn blue-btn jigsaw-preview-refresh-btn" id="jigsawApplyPreviewCutBtn" onclick="confirmJigsawPreviewCut()">刷新所有切图</button>
                 <button type="button" class="form-btn blue-btn" id="jigsawRestoredDownloadBtn" onclick="downloadAllRestoredJigsawImages('imported')" title="下载原图预览中的全部还原图，保留原始 PNG，不受重新切割影响" hidden>下载所有还原图</button>
                 <button type="button" class="form-btn red-btn jigsaw-preview-clear-btn" onclick="clearAllJigsawHistory()">清除所有</button>
@@ -669,13 +680,22 @@ const jigsawDropZone = document.getElementById('jigsawDropZone');
 // ============================================================
 let singleCropState = { img: null, url: '', x: 0, y: 0, width: 1, height: 1, dragging: null };
 let singleCropEditingGroupId = null;
+let singleCropScope = 'single';
 function showSingleCropPage(scrollTop = window.scrollY) {
     const page = document.getElementById('singleCropPage');
     page.style.display = 'block';
     page.scrollTop = 0;
     page.style.top = `${scrollTop}px`;
 }
-function showJigsawPage() { document.getElementById('singleCropPage').style.display = 'none'; }
+function showJigsawPage() {
+    clearTimeout(window._singleCropInputTimer);
+    window._singleCropInputTimer = null;
+    document.getElementById('singleCropPage').style.display = 'none';
+    singleCropState.dragging = null;
+    singleCropState.img = null;
+    singleCropEditingGroupId = null;
+    singleCropScope = 'single';
+}
 function selectSingleJigsawMode(card, groupName) {
     const group = card.parentElement;
     group.querySelectorAll('.jigsaw-mode-card').forEach(item => item.classList.remove('selected'));
@@ -692,11 +712,77 @@ const singleCropStage = document.getElementById('singleCropStage');
 const singleCropSelection = document.getElementById('singleCropSelection');
 const singleCropFields = ['singleCropX', 'singleCropY', 'singleCropWidth', 'singleCropHeight'].map(id => document.getElementById(id));
 
+function readSingleCropSettings() {
+    const grid = getSingleCropGrid();
+    return {
+        crop: { x: singleCropState.x, y: singleCropState.y, width: singleCropState.width, height: singleCropState.height },
+        mode: document.getElementById('singleCropGroupGrid').value,
+        modeIsCustom: true,
+        cutCols: grid.cols, cutRows: grid.rows,
+        freeRatioCrop: !singleCropFixedRatio.checked,
+        ratioUnit: Math.max(1, Math.min(10000, parseInt(document.getElementById('singleCropRatioUnit').value) || getJigsawRatioUnit()))
+    };
+}
+
+// 每组独立复制模板，不按各组原有网格适配；仅在原图太小时限制选区边界。
+function copyJigsawCropSettings(settings, image) {
+    const crop = { ...settings.crop };
+    if (image) {
+        const scale = Math.min(1, image.width / crop.width, image.height / crop.height);
+        crop.width *= scale;
+        crop.height *= scale;
+        crop.x = Math.max(0, Math.min(image.width - crop.width, crop.x));
+        crop.y = Math.max(0, Math.min(image.height - crop.height, crop.y));
+    }
+    return { crop, mode: settings.mode, modeIsCustom: true, cutCols: settings.cutCols, cutRows: settings.cutRows,
+        freeRatioCrop: settings.freeRatioCrop, ratioUnit: settings.ratioUnit };
+}
+
+function applyPendingJigsawCropSettings(group) {
+    if (!group.pendingCropSettings) return;
+    Object.assign(group, copyJigsawCropSettings(group.pendingCropSettings));
+    delete group.pendingCropSettings;
+}
+
+function openUnifiedCropEditor() {
+    if (!allJigsawGroupsData.length || !canEditJigsawPreviews()) return;
+    clearTimeout(_autoRefreshTimer);
+    openGroupCropEditor(allJigsawGroupsData[0].id, 'all');
+}
+
+function changeUnifiedCropReference(id) {
+    if (singleCropScope !== 'all') return;
+    openGroupCropEditor(Number(id), 'all');
+}
+
+async function applyUnifiedCropToAll() {
+    if (!singleCropState.img || !canEditJigsawPreviews()) return;
+    if (window._singleCropInputTimer) syncSingleCropFields();
+    clearTimeout(_autoRefreshTimer);
+    const template = readSingleCropSettings();
+    const count = allJigsawGroupsData.length;
+    allJigsawGroupsData.forEach(group => {
+        // 延迟模式不改动当前切图的选区、网格、任务和输出 DOM。
+        group.pendingCropSettings = copyJigsawCropSettings(template, group.img);
+    });
+    showJigsawPage();
+    if (document.getElementById('jigsawPreviewRealtimeSync').checked) {
+        await confirmJigsawPreviewCut();
+    } else {
+        document.getElementById('jigsawStatus').textContent = `已为 ${count} 张原图保存相同的选区、切割网格和分辨率，下方结果保持不变；点击“刷新所有切图”后应用。`;
+    }
+}
+
 function clampSingleCrop() {
     const img = singleCropState.img;
     if (!img) return;
     singleCropState.width = Math.max(1, Math.min(img.width, Number(singleCropFields[2].value) || 1));
     singleCropState.height = Math.max(1, Math.min(img.height, Number(singleCropFields[3].value) || 1));
+    if (singleCropFixedRatio.checked) {
+        const ratio = Number(singleCropRatio.value) || 0.75;
+        singleCropState.width = Math.min(singleCropState.width, img.height * ratio);
+        singleCropState.height = singleCropState.width / ratio;
+    }
     singleCropState.x = Math.max(0, Math.min(img.width - singleCropState.width, Number(singleCropFields[0].value) || 0));
     singleCropState.y = Math.max(0, Math.min(img.height - singleCropState.height, Number(singleCropFields[1].value) || 0));
     [singleCropState.x, singleCropState.y, singleCropState.width, singleCropState.height].forEach((value, index) => { singleCropFields[index].value = Math.round(value); });
@@ -712,7 +798,6 @@ function updateSingleCropView() {
     singleCropSelection.style.top = `${singleCropState.y * scaleY}px`;
     singleCropSelection.style.width = `${singleCropState.width * scaleX}px`;
     singleCropSelection.style.height = `${singleCropState.height * scaleY}px`;
-    const editingGroup = singleCropEditingGroupId === null ? null : allJigsawGroupsData.find(group => group.id === singleCropEditingGroupId);
     const grid = getSingleCropGrid();
     singleCropSelection.querySelectorAll('.single-crop-grid-line').forEach(line => line.remove());
     for (let col = 1; col < grid.cols; col++) {
@@ -729,6 +814,8 @@ function updateSingleCropView() {
     }
 }
 function syncSingleCropFields() {
+    clearTimeout(window._singleCropInputTimer);
+    window._singleCropInputTimer = null;
     if (singleCropFixedRatio.checked) {
         const ratio = Number(singleCropRatio.value) || 0.75;
         const width = Number(singleCropFields[2].value) || singleCropState.width;
@@ -786,7 +873,7 @@ function updateSingleCropFreeRatioUI() {
     wrap.style.display = show ? 'inline-flex' : 'none';
     if (!show || !singleCropState.img) return;
     const grid = getSingleCropGrid();
-    const pieceRatio = simplifyJigsawRatio(singleCropState.width / grid.cols, singleCropState.height / grid.rows);
+    const pieceRatio = simplifyJigsawRatio(singleCropState.width * grid.rows, singleCropState.height * grid.cols);
     const unit = Math.max(1, parseInt(document.getElementById('singleCropRatioUnit')?.value) || getJigsawRatioUnit());
     const ratioLabel = document.getElementById('singleCropFreeRatioLabel');
     if (ratioLabel) ratioLabel.textContent = `${pieceRatio.w}:${pieceRatio.h}`;
@@ -794,9 +881,16 @@ function updateSingleCropFreeRatioUI() {
     if (outLabel) outLabel.textContent = `${Math.round(pieceRatio.w * unit)}×${Math.round(pieceRatio.h * unit)}`;
 }
 document.getElementById('singleCropRatioUnit')?.addEventListener('input', updateSingleCropFreeRatioUI);
-singleCropFixedRatio.addEventListener('change', () => { updateSingleCropFreeRatioUI(); if (singleCropFixedRatio.checked) autoAdjustCropRatio(); });
+singleCropFixedRatio.addEventListener('change', () => {
+    updateSingleCropFreeRatioUI();
+    if (singleCropFixedRatio.checked) autoAdjustCropRatio();
+});
 singleCropFields.forEach(field => field.addEventListener('input', () => { clearTimeout(window._singleCropInputTimer); window._singleCropInputTimer = setTimeout(syncSingleCropFields, 300); }));
 window.addEventListener('resize', updateSingleCropView);
+singleCropImage.addEventListener('load', updateSingleCropView);
+document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && document.getElementById('singleCropPage').style.display !== 'none') showJigsawPage();
+});
 
 singleCropSelection.addEventListener('pointerdown', event => {
     if (!singleCropState.img) return;
@@ -840,22 +934,18 @@ singleCropSelection.addEventListener('pointermove', event => {
 });
 singleCropSelection.addEventListener('pointerup', () => { singleCropState.dragging = null; });
 
-document.getElementById('singleCropConfirmBtn').addEventListener('click', () => {
+document.getElementById('singleCropConfirmBtn').addEventListener('click', async () => {
     if (!singleCropState.img) return;
-    syncSingleCropFields();
+    if (singleCropScope === 'all') {
+        await applyUnifiedCropToAll();
+        return;
+    }
+    if (!canEditJigsawPreviews()) return;
+    if (window._singleCropInputTimer) syncSingleCropFields();
     if (singleCropEditingGroupId !== null) {
         const group = allJigsawGroupsData.find(item => item.id === singleCropEditingGroupId);
         if (group) {
-            group.crop = { x: singleCropState.x, y: singleCropState.y, width: singleCropState.width, height: singleCropState.height };
-            group.freeRatioCrop = !singleCropFixedRatio.checked;
-            group.ratioUnit = Math.max(1, parseInt(document.getElementById('singleCropRatioUnit')?.value) || getJigsawRatioUnit());
-            const gridMode = document.getElementById('singleCropGroupGrid').value;
-            group.mode = gridMode;
-            group.modeIsCustom = true;
-            if (gridMode === 'custom') {
-                group.cutCols = Math.max(1, Math.min(20, parseInt(document.getElementById('singleCropGroupCols').value) || 2));
-                group.cutRows = Math.max(1, Math.min(20, parseInt(document.getElementById('singleCropGroupRows').value) || 2));
-            }
+            group.pendingCropSettings = readSingleCropSettings();
             singleCropEditingGroupId = null;
             showJigsawPage();
             generateJigsawCuts(group, refreshAllJigsawGroupsUI);
@@ -1459,6 +1549,7 @@ async function importRestoredJigsawGroups() {
 }
 
 function generateJigsawCuts(groupObj, onComplete) {
+    applyPendingJigsawCropSettings(groupObj);
     groupObj._isCutting = true;
     groupObj.tasks.forEach(task => { if(task && task.url) URL.revokeObjectURL(task.url); });
     groupObj.tasks = [];
@@ -1479,7 +1570,8 @@ function generateJigsawCuts(groupObj, onComplete) {
     const ratioUnit = groupObj.ratioUnit || getJigsawRatioUnit();
     if (groupObj.crop && groupObj.freeRatioCrop) {
         // 自由比例：输出单图分辨率 = 选区单张切图比例 × 单图比例分辨率
-        const pieceRatio = simplifyJigsawRatio(srcWidth / cols, srcHeight / rows);
+        // 先交叉相乘再约分，避免把每块的小数宽高取整成 83:75 等过大的比例。
+        const pieceRatio = simplifyJigsawRatio(srcWidth * rows, srcHeight * cols);
         targetOutWidth = pieceRatio.w * ratioUnit;
         targetOutHeight = pieceRatio.h * ratioUnit;
     } else {
@@ -1634,7 +1726,7 @@ async function refreshJigsawGroupsAfterReorder(affectedGroups) {
                 }
             }
         }
-        if (!group.tasks.length || before !== getJigsawCutSettingsSignature(group)) {
+        if (group.pendingCropSettings || !group.tasks.length || before !== getJigsawCutSettingsSignature(group)) {
             recutCount++;
             await new Promise(resolve => generateJigsawCuts(group, resolve));
         }
@@ -1908,9 +2000,9 @@ function refreshAllJigsawGroupsUI() {
 function getSingleCropGrid() {
     const gridMode = document.getElementById('singleCropGroupGrid')?.value || '2x2';
     if (gridMode === 'custom') {
-        return { cols: Math.max(1, parseInt(document.getElementById('singleCropGroupCols')?.value) || 2), rows: Math.max(1, parseInt(document.getElementById('singleCropGroupRows')?.value) || 2) };
+        return { cols: Math.max(1, Math.min(20, parseInt(document.getElementById('singleCropGroupCols')?.value) || 2)), rows: Math.max(1, Math.min(20, parseInt(document.getElementById('singleCropGroupRows')?.value) || 2)) };
     }
-    const preset = { '2x2': [2, 2], '2x1': [2, 1], '1x2': [1, 2], '3x1': [3, 1], '4x4': [4, 4], '4x5': [4, 5], '6x6': [6, 6], '8x8': [8, 8] }[gridMode] || [2, 2];
+    const preset = { '1x1': [1, 1], '2x2': [2, 2], '2x1': [2, 1], '1x2': [1, 2], '3x1': [3, 1], '4x4': [4, 4], '4x5': [4, 5], '6x6': [6, 6], '8x8': [8, 8] }[gridMode] || [2, 2];
     return { cols: preset[0], rows: preset[1] };
 }
 
@@ -1927,9 +2019,9 @@ function autoAdjustCropRatio() {
         const cx = singleCropState.x + singleCropState.width / 2;
         const cy = singleCropState.y + singleCropState.height / 2;
         let newW, newH;
-        const wByH = Math.round(img.height * ratio);
+        const wByH = img.height * ratio;
         if (wByH <= img.width) { newH = img.height; newW = wByH; }
-        else { newW = img.width; newH = Math.round(newW / ratio); }
+        else { newW = img.width; newH = newW / ratio; }
         singleCropState.width = newW;
         singleCropState.height = newH;
         singleCropState.x = Math.max(0, Math.min(img.width - newW, Math.round(cx - newW / 2)));
@@ -1945,16 +2037,35 @@ function updateSingleCropGroupGridUI() {
     autoAdjustCropRatio();
 }
 
-function openGroupCropEditor(id) {
+function openGroupCropEditor(id, scope = 'single') {
     const currentScrollTop = window.scrollY;
     const group = allJigsawGroupsData.find(item => item.id === id);
-    if (!group) return;
+    if (!group || !canEditJigsawPreviews()) return;
+    clearTimeout(window._singleCropInputTimer);
+    window._singleCropInputTimer = null;
+    singleCropScope = scope;
+    document.getElementById('singleCropPage').dataset.scope = scope;
     singleCropEditingGroupId = id;
-    const groupGrid = getJigsawGroupGrid(group);
-    const groupGridMode = ['2x2', '2x1', '1x2', '3x1', '4x4', '4x5', '6x6', '8x8'].includes(group.mode) ? group.mode : (group.mode === 'custom' ? 'custom' : `${groupGrid.cols}x${groupGrid.rows}`);
+    const isUnified = scope === 'all';
+    document.getElementById('singleCropTitle').textContent = isUnified ? `统一选区 · 当前 ${allJigsawGroupsData.length} 张原图` : '🎯 组选区';
+    document.getElementById('unifiedCropControls').hidden = !isUnified;
+    const reference = document.getElementById('unifiedCropReference');
+    reference.replaceChildren();
+    if (isUnified) {
+        allJigsawGroupsData.forEach((item, index) => reference.add(new Option(`第 ${index + 1} 组 · ${item.img.width} × ${item.img.height}`, String(item.id))));
+        reference.value = String(id);
+        document.getElementById('unifiedCropApplyHint').textContent = document.getElementById('jigsawPreviewRealtimeSync').checked
+            ? '已开启实时同步：应用后会刷新全部切图。'
+            : '应用后只保存模板设置；点击“刷新所有切图”才更新下方结果。';
+    }
+    const settings = group.pendingCropSettings || group;
+    const groupGrid = getJigsawGroupGrid(settings);
+    const gridValue = `${groupGrid.cols}x${groupGrid.rows}`;
+    const groupGridMode = settings.mode === 'custom' || !['1x1', '2x2', '2x1', '1x2', '3x1', '4x4', '4x5', '6x6', '8x8'].includes(gridValue) ? 'custom' : gridValue;
     document.getElementById('singleCropGroupGrid').value = groupGridMode;
     document.getElementById('singleCropGroupCols').value = groupGrid.cols;
     document.getElementById('singleCropGroupRows').value = groupGrid.rows;
+    document.getElementById('singleCropGroupGridCustom').style.display = groupGridMode === 'custom' ? 'inline-flex' : 'none';
     const dr = getJigsawDefaultRatio();
     const ratio = (dr.w / dr.h) * groupGrid.cols / groupGrid.rows;
     singleCropRatio.value = ratio;
@@ -1962,30 +2073,32 @@ function openGroupCropEditor(id) {
     const autoLabel = document.getElementById('singleCropAutoRatioLabel');
     if (autoLabel) autoLabel.textContent = `${dr.w}:${dr.h}`;
     let initW, initH, initX, initY;
-    if (group.crop) {
+    if (settings.crop) {
         // 恢复该组上次确认的选区
-        initW = group.crop.width; initH = group.crop.height;
-        initX = group.crop.x; initY = group.crop.y;
+        initW = settings.crop.width; initH = settings.crop.height;
+        initX = settings.crop.x; initY = settings.crop.y;
     } else {
-        const wByH = Math.round(group.img.height * ratio);
+        const wByH = group.img.height * ratio;
         if (wByH <= group.img.width) {
             initH = group.img.height; initW = wByH;
         } else {
-            initW = group.img.width; initH = Math.round(initW / ratio);
+            initW = group.img.width; initH = initW / ratio;
         }
         initX = Math.round((group.img.width - initW) / 2);
         initY = Math.round((group.img.height - initH) / 2);
     }
     singleCropState = { img: group.img, url: group.img.src, x: initX, y: initY, width: initW, height: initH, dragging: null };
-    singleCropFixedRatio.checked = !(group.crop && group.freeRatioCrop);
+    singleCropFixedRatio.checked = !(settings.crop && settings.freeRatioCrop);
     const ratioUnitInput = document.getElementById('singleCropRatioUnit');
-    if (ratioUnitInput) ratioUnitInput.value = group.ratioUnit || getJigsawRatioUnit();
+    if (ratioUnitInput) ratioUnitInput.value = settings.ratioUnit || getJigsawRatioUnit();
     updateSingleCropFreeRatioUI();
     singleCropImage.src = group.img.src;
     singleCropStage.style.display = 'inline-block';
     singleCropSelection.style.display = 'block';
     singleCropFields.forEach((field, index) => field.value = Math.round(singleCropState[['x', 'y', 'width', 'height'][index]]));
-    document.getElementById('singleCropConfirmBtn').disabled = false;
+    const confirmButton = document.getElementById('singleCropConfirmBtn');
+    confirmButton.disabled = false;
+    confirmButton.textContent = isUnified ? `应用到全部 ${allJigsawGroupsData.length} 张原图` : '✅ 确定选区并重新切割';
     showSingleCropPage(currentScrollTop);
     requestAnimationFrame(updateSingleCropView);
 }
@@ -2000,6 +2113,7 @@ function updateJigsawGroupPrefix(id, newPrefix) {
 function updateSingleJigsawMode(id, newMode) {
     const groupObj = allJigsawGroupsData.find(g => g.id === id);
     if (!groupObj) return;
+    applyPendingJigsawCropSettings(groupObj);
     groupObj.mode = newMode;
     groupObj.modeIsCustom = true;
     if (newMode === 'custom' && (!groupObj.cutCols || !groupObj.cutRows)) {
@@ -2013,6 +2127,7 @@ function updateSingleJigsawMode(id, newMode) {
 function updateSingleJigsawGrid(id, direction, value) {
     const groupObj = allJigsawGroupsData.find(g => g.id === id);
     if (!groupObj) return;
+    applyPendingJigsawCropSettings(groupObj);
     const gridValue = Math.max(1, Math.min(20, parseInt(value) || 1));
     groupObj.mode = 'custom';
     groupObj.modeIsCustom = true;
