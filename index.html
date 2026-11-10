@@ -541,7 +541,7 @@
             <div class="single-crop-page-header"><div class="jigsaw-page-title" id="singleCropTitle">🎯 组选区</div><button class="form-btn blue-btn" onclick="showJigsawPage()">取消</button></div>
             <div class="unified-crop-controls" id="unifiedCropControls" hidden>
                 <label>模板原图 <select id="unifiedCropReference" onchange="changeUnifiedCropReference(this.value)"></select></label>
-                <p>以一张原图为模板，将选区、切割网格和分辨率复制到当前全部原图。选区按原图像素复制；切换模板会载入该图已有的设置。</p>
+                <p>以一张原图为模板，按相对位置和大小同步选区，自动适配不同分辨率；切割网格和输出分辨率保持一致。宽高比不同时，固定比例保持选区形状，自由比例按横纵百分比同步（输出可能拉伸）。切换模板会载入该图已有的设置。</p>
                 <p id="unifiedCropApplyHint"></p>
             </div>
             <div class="single-crop-toolbar">
@@ -575,13 +575,13 @@
                 <button type="button" class="form-btn red-btn jigsaw-preview-clear-btn" onclick="clearAllJigsawHistory()">清除所有</button>
             </div>
         </div>
-        <div class="jigsaw-all-preview-hint">拖到图片上交换位置，拖到两张图片之间插入；点击图片下方“删除”移除。未勾选“实时同步切图”时，新拖入的图片也只加入原图预览，下方切图结果保持不变，点击“刷新所有切图”后才会更新。</div>
+        <div class="jigsaw-all-preview-hint">拖到图片上交换位置，拖到两张图片之间插入；点击图片下方“删除”移除。自动按文件内容去重：已有图片和同一批中的重复图片会跳过，改名也能识别；同名但内容不同仍可加入。未勾选“实时同步切图”时，新拖入的图片也只加入原图预览，下方切图结果保持不变，点击“刷新所有切图”后才会更新。</div>
         <div class="jigsaw-all-preview-container" id="jigsawAllPreviewContainer"></div>
     </div>
     <div class="jigsaw-upload-area" id="jigsawDropZone" onclick="document.getElementById('jigsawFileInput').click()">
         <span style="font-size: 15px; font-weight: bold; color: var(--accent-color);">点击或将多张原图拖拽到此处</span>
         <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.5;">
-            上传后可先调整原图顺序，再点击<b>刷新所有切图</b>。已有切片可通过下方“读取切图文件夹”拼回整图。
+            上传时自动跳过内容相同的重复文件。可先调整原图顺序，再点击<b>刷新所有切图</b>。已有切片可通过下方“读取切图文件夹”拼回整图。
         </div>
         <input type="file" id="jigsawFileInput" accept="image/*" multiple onchange="handleJigsawFiles(this.files)">
     </div>
@@ -693,6 +693,7 @@ function showJigsawPage() {
     document.getElementById('singleCropPage').style.display = 'none';
     singleCropState.dragging = null;
     singleCropState.img = null;
+    singleCropState.savedSettings = null;
     singleCropEditingGroupId = null;
     singleCropScope = 'single';
 }
@@ -720,13 +721,43 @@ function readSingleCropSettings() {
         modeIsCustom: true,
         cutCols: grid.cols, cutRows: grid.rows,
         freeRatioCrop: !singleCropFixedRatio.checked,
+        cropOutputRatio: singleCropFixedRatio.checked ? null : getSingleCropPieceRatio(),
         ratioUnit: Math.max(1, Math.min(10000, parseInt(document.getElementById('singleCropRatioUnit').value) || getJigsawRatioUnit()))
     };
 }
 
-// 每组独立复制模板，不按各组原有网格适配；仅在原图太小时限制选区边界。
-function copyJigsawCropSettings(settings, image) {
+function getSingleCropPieceRatio() {
+    const grid = getSingleCropGrid();
+    const saved = singleCropState.savedSettings;
+    // 未改动选区和网格时，保留模板的输出比例，避免小图像素取整或不同宽高比导致分辨率漂移。
+    if (saved?.cropOutputRatio && saved.freeRatioCrop && saved.cutCols === grid.cols && saved.cutRows === grid.rows &&
+        ['x', 'y', 'width', 'height'].every(key => saved.crop[key] === singleCropState[key])) {
+        return { ...saved.cropOutputRatio };
+    }
+    return simplifyJigsawRatio(singleCropState.width * grid.rows, singleCropState.height * grid.cols);
+}
+
+// 仅在套用模板时映射坐标；提交已映射的待刷新设置时不再缩放。
+function copyJigsawCropSettings(settings, image, sourceImage) {
     const crop = { ...settings.crop };
+    if (image && sourceImage && (image.width !== sourceImage.width || image.height !== sourceImage.height)) {
+        if (settings.freeRatioCrop) {
+            crop.x *= image.width / sourceImage.width;
+            crop.y *= image.height / sourceImage.height;
+            crop.width *= image.width / sourceImage.width;
+            crop.height *= image.height / sourceImage.height;
+        } else {
+            // 固定比例：相对中心 + 占最大可容纳选区的比例，兼容横图和竖图且不拉伸选区。
+            const ratio = crop.width / crop.height;
+            const scale = Math.min(image.width, image.height * ratio) / Math.min(sourceImage.width, sourceImage.height * ratio);
+            const centerX = (crop.x + crop.width / 2) / sourceImage.width;
+            const centerY = (crop.y + crop.height / 2) / sourceImage.height;
+            crop.width *= scale;
+            crop.height *= scale;
+            crop.x = centerX * image.width - crop.width / 2;
+            crop.y = centerY * image.height - crop.height / 2;
+        }
+    }
     if (image) {
         const scale = Math.min(1, image.width / crop.width, image.height / crop.height);
         crop.width *= scale;
@@ -735,7 +766,8 @@ function copyJigsawCropSettings(settings, image) {
         crop.y = Math.max(0, Math.min(image.height - crop.height, crop.y));
     }
     return { crop, mode: settings.mode, modeIsCustom: true, cutCols: settings.cutCols, cutRows: settings.cutRows,
-        freeRatioCrop: settings.freeRatioCrop, ratioUnit: settings.ratioUnit };
+        freeRatioCrop: settings.freeRatioCrop, ratioUnit: settings.ratioUnit,
+        cropOutputRatio: settings.cropOutputRatio ? { ...settings.cropOutputRatio } : null };
 }
 
 function applyPendingJigsawCropSettings(group) {
@@ -763,13 +795,13 @@ async function applyUnifiedCropToAll() {
     const count = allJigsawGroupsData.length;
     allJigsawGroupsData.forEach(group => {
         // 延迟模式不改动当前切图的选区、网格、任务和输出 DOM。
-        group.pendingCropSettings = copyJigsawCropSettings(template, group.img);
+        group.pendingCropSettings = copyJigsawCropSettings(template, group.img, singleCropState.img);
     });
     showJigsawPage();
     if (document.getElementById('jigsawPreviewRealtimeSync').checked) {
         await confirmJigsawPreviewCut();
     } else {
-        document.getElementById('jigsawStatus').textContent = `已为 ${count} 张原图保存相同的选区、切割网格和分辨率，下方结果保持不变；点击“刷新所有切图”后应用。`;
+        document.getElementById('jigsawStatus').textContent = `已按各原图分辨率适配 ${count} 张原图的统一选区，切割网格和输出分辨率保持一致；下方结果未改变，点击“刷新所有切图”后应用。`;
     }
 }
 
@@ -872,8 +904,7 @@ function updateSingleCropFreeRatioUI() {
     const show = !singleCropFixedRatio.checked;
     wrap.style.display = show ? 'inline-flex' : 'none';
     if (!show || !singleCropState.img) return;
-    const grid = getSingleCropGrid();
-    const pieceRatio = simplifyJigsawRatio(singleCropState.width * grid.rows, singleCropState.height * grid.cols);
+    const pieceRatio = getSingleCropPieceRatio();
     const unit = Math.max(1, parseInt(document.getElementById('singleCropRatioUnit')?.value) || getJigsawRatioUnit());
     const ratioLabel = document.getElementById('singleCropFreeRatioLabel');
     if (ratioLabel) ratioLabel.textContent = `${pieceRatio.w}:${pieceRatio.h}`;
@@ -1128,7 +1159,9 @@ function getJigsawFullOutputSize(group) {
     const fullUnit = getJigsawFullRatioUnit();
     let fullRatio;
     if (group.crop && group.freeRatioCrop) {
-        fullRatio = simplifyJigsawRatio(group.crop.width, group.crop.height);
+        fullRatio = group.cropOutputRatio
+            ? simplifyJigsawRatio(group.cropOutputRatio.w * grid.cols, group.cropOutputRatio.h * grid.rows)
+            : simplifyJigsawRatio(group.crop.width, group.crop.height);
     } else {
         const dr = getJigsawDefaultRatio();
         fullRatio = smartSimplifyRatio(dr.w * grid.cols, dr.h * grid.rows);
@@ -1172,6 +1205,22 @@ async function refreshAllJigsawWithCurrentSettings() {
 }
 
 let _jigsawIsProcessing = false;
+
+async function getJigsawSourceFingerprint(file) {
+    // 不使用文件名或修改时间：同名不同内容可以共存，改名后的相同文件仍可识别。
+    if (globalThis.crypto?.subtle) {
+        const digest = await globalThis.crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+        return 'sha256:' + Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+    // 非安全 HTTP 环境没有 Web Crypto 时，比较完整文件字节，不降级为文件名判断。
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve('bytes:' + reader.result.slice(reader.result.indexOf(',') + 1));
+        reader.onerror = reader.onabort = () => reject(new Error('无法读取图片内容'));
+        reader.readAsDataURL(file);
+    });
+}
+
 async function handleJigsawFiles(files) {
     if (_jigsawIsProcessing) return;
     _jigsawIsProcessing = true;
@@ -1184,7 +1233,22 @@ async function handleJigsawFiles(files) {
         const realtimeSync = document.getElementById('jigsawPreviewRealtimeSync')?.checked === true;
         const deferCut = !realtimeSync;
         const statusDiv = document.getElementById('jigsawStatus');
+        // 每次从现有原图建立索引，删除或清空后允许重新导入，不保留过期指纹。
+        const fingerprints = new Set(allJigsawGroupsData.map(group => group.sourceFingerprint).filter(Boolean));
+        let added = 0, duplicates = 0, failed = 0;
         for (let i = 0; i < imageFiles.length; i++) {
+            if (statusDiv) statusDiv.textContent = `正在检查重复图片... (${i + 1}/${imageFiles.length})`;
+            let sourceFingerprint;
+            try {
+                sourceFingerprint = await getJigsawSourceFingerprint(imageFiles[i]);
+            } catch (error) {
+                failed++;
+                continue;
+            }
+            if (fingerprints.has(sourceFingerprint)) {
+                duplicates++;
+                continue;
+            }
             const prefix = getJigsawPrefix(totalJigsawImageCount);
             if (statusDiv) statusDiv.textContent = deferCut
                 ? `读取图片... (${i + 1}/${imageFiles.length}) [${prefix}]`
@@ -1199,14 +1263,22 @@ async function handleJigsawFiles(files) {
             } else if (mode === 'custom') {
                 customGrid = getJigsawCustomGrid();
             }
-            await processSingleJigsawFile(imageFiles[i], prefix, mode, customGrid, deferCut);
+            try {
+                await processSingleJigsawFile(imageFiles[i], prefix, mode, customGrid, deferCut, sourceFingerprint);
+            } catch (error) {
+                failed++;
+                continue;
+            }
+            fingerprints.add(sourceFingerprint);
+            added++;
             totalJigsawImageCount++;
         }
-        if (deferCut) {
-            refreshAllPreviewBar();
-            if (statusDiv) statusDiv.textContent = `✨ ${imageFiles.length} 张图片已加入原图预览，请调整顺序后点击“刷新所有切图”`;
-        } else if (statusDiv) {
-            statusDiv.textContent = `✨ ${imageFiles.length} 张图片切割完毕`;
+        if (deferCut && added) refreshAllPreviewBar();
+        if (statusDiv) {
+            const result = `本次新增 ${added} 张图片，已跳过 ${duplicates} 张重复图片${failed ? `，${failed} 张读取失败` : ''}。`;
+            statusDiv.textContent = result + (added
+                ? (deferCut ? '请调整顺序后点击“刷新所有切图”。' : '新增图片已切割完毕。')
+                : '现有原图预览和切图结果保持不变。');
         }
     } finally {
         _jigsawIsProcessing = false;
@@ -1215,14 +1287,16 @@ async function handleJigsawFiles(files) {
     }
 }
 
-function processSingleJigsawFile(file, prefix, mode, customGrid = null, deferCut = false) {
-    return new Promise((resolve) => {
+function processSingleJigsawFile(file, prefix, mode, customGrid = null, deferCut = false, sourceFingerprint = null) {
+    return new Promise((resolve, reject) => {
         const reader = new FileReader();
+        reader.onerror = reader.onabort = () => reject(new Error('无法读取图片文件'));
         reader.onload = function(event) {
             const img = new Image();
+            img.onerror = () => reject(new Error('无法解码图片文件'));
             img.onload = function() {
                 const id = ++jigsawGroupCounterId;
-                const groupObj = { id, prefix, isCustom: false, modeIsCustom: false, mode, cutCols: customGrid?.cols, cutRows: customGrid?.rows, img, tasks: [], gridClass: '' };
+                const groupObj = { id, prefix, isCustom: false, modeIsCustom: false, mode, cutCols: customGrid?.cols, cutRows: customGrid?.rows, img, sourceFingerprint, tasks: [], gridClass: '' };
                 allJigsawGroupsData.push(groupObj);
                 if (deferCut) {
                     resolve();
@@ -1522,6 +1596,7 @@ async function importRestoredJigsawGroups() {
     let committed = false;
     try {
         for (const source of selected) {
+            const sourceFingerprint = await getJigsawSourceFingerprint(source.restored.blob);
             const { img, url } = await loadJigsawReverseImage(source.restored.blob, source.label);
             const index = allJigsawGroupsData.length + prepared.length;
             const mode = document.getElementById('jigsawTemplateToggle').checked
@@ -1530,7 +1605,7 @@ async function importRestoredJigsawGroups() {
             const grid = getJigsawCustomGrid();
             prepared.push({ id: ++jigsawGroupCounterId, prefix: getJigsawPrefix(index), isCustom: false, modeIsCustom: false,
                 mode, cutCols: grid.cols, cutRows: grid.rows, img, sourceUrl: url, restoredFrom: source.label,
-                restoredBlob: source.restored.blob, tasks: [], gridClass: '' });
+                restoredBlob: source.restored.blob, sourceFingerprint, tasks: [], gridClass: '' });
         }
         allJigsawGroupsData.push(...prepared);
         totalJigsawImageCount = allJigsawGroupsData.length;
@@ -1571,7 +1646,7 @@ function generateJigsawCuts(groupObj, onComplete) {
     if (groupObj.crop && groupObj.freeRatioCrop) {
         // 自由比例：输出单图分辨率 = 选区单张切图比例 × 单图比例分辨率
         // 先交叉相乘再约分，避免把每块的小数宽高取整成 83:75 等过大的比例。
-        const pieceRatio = simplifyJigsawRatio(srcWidth * rows, srcHeight * cols);
+        const pieceRatio = groupObj.cropOutputRatio || simplifyJigsawRatio(srcWidth * rows, srcHeight * cols);
         targetOutWidth = pieceRatio.w * ratioUnit;
         targetOutHeight = pieceRatio.h * ratioUnit;
     } else {
@@ -2087,7 +2162,7 @@ function openGroupCropEditor(id, scope = 'single') {
         initX = Math.round((group.img.width - initW) / 2);
         initY = Math.round((group.img.height - initH) / 2);
     }
-    singleCropState = { img: group.img, url: group.img.src, x: initX, y: initY, width: initW, height: initH, dragging: null };
+    singleCropState = { img: group.img, url: group.img.src, x: initX, y: initY, width: initW, height: initH, dragging: null, savedSettings: settings };
     singleCropFixedRatio.checked = !(settings.crop && settings.freeRatioCrop);
     const ratioUnitInput = document.getElementById('singleCropRatioUnit');
     if (ratioUnitInput) ratioUnitInput.value = settings.ratioUnit || getJigsawRatioUnit();
@@ -2115,6 +2190,7 @@ function updateSingleJigsawMode(id, newMode) {
     if (!groupObj) return;
     applyPendingJigsawCropSettings(groupObj);
     groupObj.mode = newMode;
+    groupObj.cropOutputRatio = null;
     groupObj.modeIsCustom = true;
     if (newMode === 'custom' && (!groupObj.cutCols || !groupObj.cutRows)) {
         const grid = getJigsawCustomGrid();
@@ -2129,6 +2205,7 @@ function updateSingleJigsawGrid(id, direction, value) {
     if (!groupObj) return;
     applyPendingJigsawCropSettings(groupObj);
     const gridValue = Math.max(1, Math.min(20, parseInt(value) || 1));
+    groupObj.cropOutputRatio = null;
     groupObj.mode = 'custom';
     groupObj.modeIsCustom = true;
     groupObj[direction === 'cols' ? 'cutCols' : 'cutRows'] = gridValue;

@@ -7,12 +7,13 @@ const { test } = require('node:test');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const helpers = html.slice(html.indexOf('function readSingleCropSettings('), html.indexOf('function openUnifiedCropEditor('));
 const gridHelper = html.slice(html.indexOf('function getSingleCropGrid('), html.indexOf('function autoAdjustCropRatio('));
+const ratioHelper = html.slice(html.indexOf('function simplifyJigsawRatio('), html.indexOf('function reduceDecimalRatio('));
 const plain = value => JSON.parse(JSON.stringify(value));
 const image = { width: 800, height: 600 };
 const template = {
     crop: { x: 80, y: 60, width: 250, height: 150 },
     mode: 'custom', modeIsCustom: true, cutCols: 3, cutRows: 2,
-    freeRatioCrop: true, ratioUnit: 65
+    freeRatioCrop: true, ratioUnit: 65, cropOutputRatio: { w: 10, h: 9 }
 };
 
 function setup(overrides = {}) {
@@ -29,7 +30,7 @@ function setup(overrides = {}) {
         singleCropFixedRatio: { checked: false },
         getJigsawRatioUnit: () => 100
     });
-    vm.runInContext(helpers + gridHelper, context);
+    vm.runInContext(helpers + gridHelper + ratioHelper, context);
     return context;
 }
 
@@ -40,11 +41,37 @@ test('template captures pixel crop, custom grid, aspect lock and output resoluti
     assert.equal(context.readSingleCropSettings().freeRatioCrop, false);
 });
 
-test('template is copied exactly, not rescaled to larger images or adapted to other grids', () => {
+test('equal-resolution images keep exact coordinates and different resolutions scale all four edges', () => {
     const { copyJigsawCropSettings: copy } = setup();
-    for (const target of [image, { width: 1600, height: 1200 }]) {
-        assert.deepEqual(plain(copy(template, target)), template);
+    assert.deepEqual(plain(copy(template, image, image)), template);
+    for (const freeRatioCrop of [true, false]) {
+        for (const scale of [0.5, 2, 333 / 800]) {
+            const target = { width: image.width * scale, height: image.height * scale };
+            const result = copy({ ...template, freeRatioCrop }, target, image);
+            for (const key of ['x', 'y', 'width', 'height']) {
+                assert.ok(Math.abs(result.crop[key] - template.crop[key] * scale) < 1e-8, key);
+            }
+            assert.equal(result.mode, template.mode);
+            assert.equal(result.ratioUnit, template.ratioUnit);
+            assert.deepEqual(plain(result.cropOutputRatio), template.cropOutputRatio);
+        }
     }
+});
+
+test('free crops map horizontal and vertical percentages independently across aspect ratios', () => {
+    const { copyJigsawCropSettings: copy } = setup();
+    const result = copy(template, { width: 400, height: 900 }, image);
+    assert.deepEqual(plain(result.crop), { x: 40, y: 90, width: 125, height: 225 });
+    assert.deepEqual(plain(result.cropOutputRatio), { w: 10, h: 9 });
+});
+
+test('fixed crops retain shape, relative center and relative fitted size on portrait images', () => {
+    const { copyJigsawCropSettings: copy } = setup();
+    const result = copy({ ...template, freeRatioCrop: false }, { width: 400, height: 900 }, image);
+    for (const [key, expected] of Object.entries({ x: 40, y: 165, width: 125, height: 75 })) {
+        assert.ok(Math.abs(result.crop[key] - expected) < 1e-8, key);
+    }
+    assert.equal(result.crop.width / result.crop.height, template.crop.width / template.crop.height);
 });
 
 test('each group has an independent crop and settings copy', () => {
@@ -53,6 +80,7 @@ test('each group has an independent crop and settings copy', () => {
     first.crop.x = 200;
     first.cutCols = 7;
     first.ratioUnit = 90;
+    first.cropOutputRatio.w = 42;
     assert.deepEqual(plain(second), template);
     assert.deepEqual(template.crop, { x: 80, y: 60, width: 250, height: 150 });
 });
@@ -94,7 +122,7 @@ test('a later individual crop replaces the template only for its own group', () 
 test('smaller image bounds keep the crop valid without stretching its shape', () => {
     const { copyJigsawCropSettings: copy } = setup();
     for (const target of [{ width: 100, height: 90 }, { width: 1, height: 1 }, { width: 300, height: 180 }]) {
-        const result = copy(template, target);
+        const result = copy({ ...template, freeRatioCrop: false }, target, image);
         const { x, y, width, height } = result.crop;
         assert.ok(x >= 0 && y >= 0 && width > 0 && height > 0);
         assert.ok(x + width <= target.width + 1e-8 && y + height <= target.height + 1e-8);
@@ -102,6 +130,26 @@ test('smaller image bounds keep the crop valid without stretching its shape', ()
         assert.equal(result.mode, template.mode);
         assert.equal(result.ratioUnit, template.ratioUnit);
     }
+});
+
+test('refresh commits mapped coordinates once and never scales them again', () => {
+    const { copyJigsawCropSettings: copy, applyPendingJigsawCropSettings: apply } = setup();
+    const group = { pendingCropSettings: copy(template, { width: 1600, height: 1200 }, image) };
+    apply(group);
+    assert.deepEqual(plain(group.crop), { x: 160, y: 120, width: 500, height: 300 });
+    apply(group);
+    assert.deepEqual(plain(group.crop), { x: 160, y: 120, width: 500, height: 300 });
+});
+
+test('reopening an unchanged mapped crop preserves template output ratio; edits recalculate it', () => {
+    const context = setup();
+    const mapped = context.copyJigsawCropSettings(template, { width: 400, height: 900 }, image);
+    Object.assign(context.singleCropState, mapped.crop, { savedSettings: mapped });
+    assert.deepEqual(plain(context.readSingleCropSettings().cropOutputRatio), { w: 10, h: 9 });
+    context.singleCropState.width = 135;
+    assert.deepEqual(plain(context.readSingleCropSettings().cropOutputRatio), { w: 2, h: 5 });
+    context.singleCropFixedRatio.checked = true;
+    assert.equal(context.readSingleCropSettings().cropOutputRatio, null);
 });
 
 test('template grid and resolution inputs are bounded, including the 1x1 preset', () => {
