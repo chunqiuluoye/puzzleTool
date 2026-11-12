@@ -7,7 +7,8 @@ const { test } = require('node:test');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const helpers = html.slice(html.indexOf('function readSingleCropSettings('), html.indexOf('function openUnifiedCropEditor('));
 const gridHelper = html.slice(html.indexOf('function getSingleCropGrid('), html.indexOf('function autoAdjustCropRatio('));
-const ratioHelper = html.slice(html.indexOf('function simplifyJigsawRatio('), html.indexOf('function reduceDecimalRatio('));
+const ratioHelper = html.slice(html.indexOf('function getJigsawGroupGrid('), html.indexOf('function getJigsawDefaultRatio('));
+const outputHelpers = html.slice(html.indexOf('function getJigsawPieceOutputSize('), html.indexOf('async function refreshAllJigsawWithCurrentSettings('));
 const plain = value => JSON.parse(JSON.stringify(value));
 const image = { width: 800, height: 600 };
 const template = {
@@ -28,9 +29,11 @@ function setup(overrides = {}) {
         document: { getElementById: id => fields[id] },
         singleCropState: { ...template.crop, img: image, dragging: null },
         singleCropFixedRatio: { checked: false },
-        getJigsawRatioUnit: () => 100
+        getJigsawRatioUnit: () => 100,
+        getJigsawFullRatioUnit: () => 200,
+        getJigsawDefaultRatio: () => ({ w: 3, h: 4 })
     });
-    vm.runInContext(helpers + gridHelper + ratioHelper, context);
+    vm.runInContext(helpers + gridHelper + ratioHelper + outputHelpers, context);
     return context;
 }
 
@@ -165,4 +168,27 @@ test('template grid and resolution inputs are bounded, including the 1x1 preset'
 
 test('all inline scripts parse successfully', () => {
     for (const [, script] of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)) new vm.Script(script);
+});
+
+test('fixed-ratio size display uses the current piece unit and full-image unit independently', () => {
+    const context = setup({ singleCropGroupGrid: '1x2', singleCropRatioUnit: '100' });
+    context.singleCropFixedRatio.checked = true;
+    const settings = context.readSingleCropSettings();
+    assert.deepEqual(plain(context.getJigsawPieceOutputSize(settings)), { w: 300, h: 400 });
+    assert.deepEqual(plain(context.getJigsawFullOutputSize(settings)), { w: 600, h: 1600 });
+});
+
+test('free-ratio size display preserves saved template output ratio across different source resolutions', () => {
+    const context = setup();
+    const settings = context.copyJigsawCropSettings(template, { width: 400, height: 900 }, image);
+    assert.deepEqual(plain(context.getJigsawPieceOutputSize(settings)), { w: 650, h: 585 });
+    assert.deepEqual(plain(context.getJigsawFullOutputSize(settings)), { w: 1000, h: 600 });
+});
+
+test('size display follows export limits instead of showing dimensions larger than exported images', () => {
+    const context = setup();
+    const settings = { ...template, cropOutputRatio: { w: 1, h: 3 }, ratioUnit: 10000 };
+    assert.deepEqual(plain(context.getJigsawPieceOutputSize(settings)), { w: 3333, h: 10000 });
+    context.getJigsawFullRatioUnit = () => 20000;
+    assert.deepEqual(plain(context.getJigsawFullOutputSize(settings)), { w: 10000, h: 20000 });
 });
